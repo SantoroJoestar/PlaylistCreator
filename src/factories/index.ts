@@ -10,21 +10,14 @@
 
 import { Platform } from '@/lib/config/platforms';
 import { PrismaClient } from '@prisma/client';
+import { 
+  IPlatformService,
+  SpotifyService as SpotifyIntegrationService,
+  YouTubeService as YouTubeIntegrationService,
+  AppleMusicService as AppleMusicIntegrationService
+} from '@/services/integrations';
 
 // ==================== SERVICE INTERFACES ====================
-
-/**
- * Interface base para serviços de plataforma
- * Segue Interface Segregation Principle
- */
-export interface IPlatformService {
-  platform: Platform;
-  authenticate(): Promise<string>;
-  searchMusic(query: string, limit?: number): Promise<any[]>;
-  createPlaylist(name: string, description?: string): Promise<any>;
-  getUserPlaylists(): Promise<any[]>;
-  addSongToPlaylist(playlistId: string, songId: string): Promise<void>;
-}
 
 export interface IAuthService {
   login(email: string, password: string): Promise<{ user: any; token: string }>;
@@ -54,113 +47,6 @@ export interface IMoodAnalysisService {
   getMoodHistory(userId: string): Promise<any[]>;
 }
 
-// ==================== PLATFORM SERVICE IMPLEMENTATIONS ====================
-
-/**
- * Serviço para Spotify
- * Implementa IPlatformService
- */
-export class SpotifyService implements IPlatformService {
-  platform: Platform = 'spotify';
-  
-  constructor(private accessToken?: string) {}
-
-  async authenticate(): Promise<string> {
-    // Implementar autenticação OAuth do Spotify
-    throw new Error('Not implemented yet');
-  }
-
-  async searchMusic(query: string, limit = 20): Promise<any[]> {
-    // Implementar busca no Spotify
-    throw new Error('Not implemented yet');
-  }
-
-  async createPlaylist(name: string, description?: string): Promise<any> {
-    // Implementar criação de playlist no Spotify
-    throw new Error('Not implemented yet');
-  }
-
-  async getUserPlaylists(): Promise<any[]> {
-    // Implementar busca de playlists do usuário no Spotify
-    throw new Error('Not implemented yet');
-  }
-
-  async addSongToPlaylist(playlistId: string, songId: string): Promise<void> {
-    // Implementar adição de música na playlist do Spotify
-    throw new Error('Not implemented yet');
-  }
-}
-
-/**
- * Serviço para YouTube Music
- * Implementa IPlatformService
- */
-export class YouTubeService implements IPlatformService {
-  platform: Platform = 'youtube';
-  
-  constructor(private accessToken?: string) {}
-
-  async authenticate(): Promise<string> {
-    // Implementar autenticação OAuth do YouTube
-    throw new Error('Not implemented yet');
-  }
-
-  async searchMusic(query: string, limit = 20): Promise<any[]> {
-    // Implementar busca no YouTube Music
-    throw new Error('Not implemented yet');
-  }
-
-  async createPlaylist(name: string, description?: string): Promise<any> {
-    // Implementar criação de playlist no YouTube Music
-    throw new Error('Not implemented yet');
-  }
-
-  async getUserPlaylists(): Promise<any[]> {
-    // Implementar busca de playlists do usuário no YouTube Music
-    throw new Error('Not implemented yet');
-  }
-
-  async addSongToPlaylist(playlistId: string, songId: string): Promise<void> {
-    // Implementar adição de música na playlist do YouTube Music
-    throw new Error('Not implemented yet');
-  }
-}
-
-/**
- * Serviço para Apple Music
- * Implementa IPlatformService
- */
-export class AppleMusicService implements IPlatformService {
-  platform: Platform = 'apple';
-  
-  constructor(private accessToken?: string) {}
-
-  async authenticate(): Promise<string> {
-    // Implementar autenticação OAuth do Apple Music
-    throw new Error('Not implemented yet');
-  }
-
-  async searchMusic(query: string, limit = 20): Promise<any[]> {
-    // Implementar busca no Apple Music
-    throw new Error('Not implemented yet');
-  }
-
-  async createPlaylist(name: string, description?: string): Promise<any> {
-    // Apple Music não permite criação via API
-    throw new Error('Apple Music does not support playlist creation via API');
-  }
-
-  async getUserPlaylists(): Promise<any[]> {
-    // Implementar busca de playlists do usuário no Apple Music
-    throw new Error('Not implemented yet');
-  }
-
-  async addSongToPlaylist(playlistId: string, songId: string): Promise<void> {
-    // Apple Music não permite modificação via API
-    throw new Error('Apple Music does not support playlist modification via API');
-  }
-}
-
 // ==================== FACTORY CLASSES ====================
 
 /**
@@ -173,49 +59,57 @@ export class PlatformServiceFactory {
   /**
    * Cria um serviço de plataforma baseado no tipo
    * @param platform - Tipo da plataforma
-   * @param accessToken - Token de acesso (opcional)
    * @returns Serviço de plataforma implementado
    */
-  static create(platform: Platform, accessToken?: string): IPlatformService {
+  static create(platform: Platform): IPlatformService {
     switch (platform) {
       case 'spotify':
-        return new SpotifyService(accessToken);
+        return new SpotifyIntegrationService();
       case 'youtube':
-        return new YouTubeService(accessToken);
+        return new YouTubeIntegrationService();
       case 'apple':
-        return new AppleMusicService(accessToken);
+        return new AppleMusicIntegrationService();
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
   }
 
   /**
-   * Cria múltiplos serviços de plataforma
-   * @param platforms - Array de plataformas
-   * @param accessTokens - Tokens de acesso por plataforma
-   * @returns Map com serviços de plataforma
+   * Cria todos os serviços de plataforma
    */
-  static createMultiple(
-    platforms: Platform[], 
-    accessTokens?: Record<Platform, string>
-  ): Map<Platform, IPlatformService> {
-    const services = new Map<Platform, IPlatformService>();
-    
-    platforms.forEach(platform => {
-      const token = accessTokens?.[platform];
-      services.set(platform, this.create(platform, token));
-    });
-    
-    return services;
+  static createAll(): Record<Platform, IPlatformService> {
+    return {
+      spotify: new SpotifyIntegrationService(),
+      youtube: new YouTubeIntegrationService(),
+      apple: new AppleMusicIntegrationService()
+    };
   }
 
   /**
    * Verifica se uma plataforma é suportada
-   * @param platform - Tipo da plataforma
-   * @returns true se suportada, false caso contrário
    */
-  static isSupported(platform: Platform): boolean {
+  static isSupported(platform: string): platform is Platform {
     return ['spotify', 'youtube', 'apple'].includes(platform);
+  }
+
+  /**
+   * Obtém lista de plataformas suportadas
+   */
+  static getSupportedPlatforms(): Platform[] {
+    return ['spotify', 'youtube', 'apple'];
+  }
+
+  /**
+   * Cria múltiplos serviços de plataforma
+   */
+  static createMultiple(platforms: Platform[]): Map<Platform, IPlatformService> {
+    const services = new Map<Platform, IPlatformService>();
+    
+    platforms.forEach(platform => {
+      services.set(platform, this.create(platform));
+    });
+    
+    return services;
   }
 }
 
@@ -270,8 +164,8 @@ export class ServiceFactory {
   /**
    * Cria serviço de plataforma específico
    */
-  static createPlatformService(platform: Platform, accessToken?: string): IPlatformService {
-    return PlatformServiceFactory.create(platform, accessToken);
+  static createPlatformService(platform: Platform): IPlatformService {
+    return PlatformServiceFactory.create(platform);
   }
 }
 
