@@ -64,6 +64,7 @@ export interface CreatePlaylistData {
   mood?: Mood;
   playlistType: PlaylistType;
   isPublic?: boolean;
+  userId: string;
   songs?: Omit<PlaylistSong, 'id' | 'addedAt'>[];
 }
 

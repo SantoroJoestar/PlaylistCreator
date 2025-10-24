@@ -176,7 +176,7 @@ export class PlaylistRepository implements IPlaylistRepository {
           create: data.songs?.map((song, index) => ({
             songId: song.songId,
             position: index,
-            addedBy: data.userId || ''
+            addedBy: data.userId
           })) || []
         }
       },
