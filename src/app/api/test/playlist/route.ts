@@ -11,6 +11,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PLATFORM_CONFIG, MOOD_CONFIG } from '@/lib/config/platforms';
 import { Platform, Mood } from '@/lib/config/platforms';
+import { PlaylistService, MusicService, MoodAnalysisService } from '@/services';
+import { 
+  PlaylistRepository, 
+  UserRepository, 
+  SongRepository 
+} from '@/repositories';
+import { PrismaClient } from '@prisma/client';
 
 // ==================== TYPES ====================
 
@@ -70,6 +77,21 @@ const MOCK_SONGS = {
   ]
 };
 
+// ==================== SERVICES INITIALIZATION ====================
+
+// Mock Prisma Client (em produção, seria injetado)
+const prisma = {} as PrismaClient;
+
+// Inicializar Repositories
+const playlistRepository = new PlaylistRepository(prisma);
+const userRepository = new UserRepository(prisma);
+const songRepository = new SongRepository(prisma);
+
+// Inicializar Services
+const playlistService = new PlaylistService(playlistRepository, userRepository, songRepository);
+const musicService = new MusicService(songRepository);
+const moodAnalysisService = new MoodAnalysisService();
+
 // ==================== API HANDLERS ====================
 
 /**
@@ -107,9 +129,41 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestPlayl
       }, { status: 400 });
     }
 
-    // Simular criação da playlist (aqui chamaríamos o Service)
+    // 🎯 USANDO NOSSA ARQUITETURA MVC:
+    
+    // 1. Análise de humor usando MoodAnalysisService
+    const mockResponses = [
+      { question: 'Como você está se sentindo?', answer: body.mood, weight: 1 },
+      { question: 'Qual seu nível de energia?', answer: 7, weight: 0.8 }
+    ];
+    
+    const moodAnalysis = await moodAnalysisService.analyzeMood(mockResponses);
+    
+    // 2. Buscar músicas usando MusicService
+    const songs = await musicService.getSongsByGenre(
+      MOOD_CONFIG[body.mood].genres[0], 
+      body.platform, 
+      5
+    );
+    
+    // 3. Criar playlist usando PlaylistService
+    const playlistData = {
+      name: body.name,
+      description: `Playlist gerada baseada no humor: ${MOOD_CONFIG[body.mood].name}`,
+      platform: body.platform,
+      mood: body.mood,
+      playlistType: 'mood' as const,
+      userId: body.userId,
+      isPublic: false,
+      songs: songs.map((song, index) => ({
+        songId: song.id,
+        position: index,
+        addedBy: body.userId
+      }))
+    };
+
+    // Simular criação (em produção, seria: await playlistService.createPlaylist(playlistData))
     const playlistId = `playlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const songs = MOCK_SONGS[body.mood] || [];
     const totalDuration = songs.reduce((acc, song) => acc + song.duration, 0);
 
     // Simular delay de processamento
@@ -135,7 +189,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<TestPlayl
     
     return NextResponse.json({
       success: false,
-      error: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
       timestamp: new Date()
     }, { status: 500 });
   }
