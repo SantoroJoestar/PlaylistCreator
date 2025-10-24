@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER MODEL ====================
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  password    String
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  playlists           Playlist[]
+  platformIntegrations PlatformIntegration[]
+  moodAnalyses        MoodAnalysis[]
+  
+  // Preferences (JSON field for flexibility)
+  preferences Json?
+  
+  @@map("users")
+}
+
+// ==================== PLAYLIST MODELS ====================
+
+model Playlist {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  userId        String
+  platform      Platform
+  mood          Mood?
+  playlistType  PlaylistType
+  isPublic      Boolean  @default(false)
+  songCount     Int      @default(0)
+  duration      Int?     // em segundos
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songs         PlaylistSong[]
+  conversions   PlaylistConversion[]
+  metadata      Json?          // Para dados flexíveis
+  
+  @@map("playlists")
+}
+
+model PlaylistSong {
+  id         String   @id @default(cuid())
+  playlistId String
+  songId     String
+  position   Int
+  addedAt    DateTime @default(now())
+  addedBy    String   // userId
+  
+  // Relations
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  
+  @@unique([playlistId, songId])
+  @@map("playlist_songs")
+}
+
+// ==================== SONG MODEL ====================
+
+model Song {
+  id           String   @id @default(cuid())
+  title        String
+  artist       String
+  album        String?
+  duration     Int      // em segundos
+  genre        String?
+  year         Int?
+  platform     Platform
+  platformId   String   // ID na plataforma específica
+  previewUrl   String?
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  playlists    PlaylistSong[]
+  audioFeatures AudioFeatures?
+  
+  @@unique([platform, platformId])
+  @@map("songs")
+}
+
+model AudioFeatures {
+  id               String  @id @default(cuid())
+  songId           String  @unique
+  danceability     Float
+  energy           Float
+  valence          Float   // positividade
+  tempo            Float   // BPM
+  loudness         Float   // dB
+  acousticness     Float
+  instrumentalness Float
+  liveness         Float
+  speechiness      Float
+  
+  // Relations
+  song             Song    @relation(fields: [songId], references: [id], onDelete: Cascade)
+  
+  @@map("audio_features")
+}
+
+// ==================== MOOD ANALYSIS MODEL ====================
+
+model MoodAnalysis {
+  id                    String   @id @default(cuid())
+  userId                String
+  primaryMood           Mood
+  confidence            Float
+  secondaryMoods       Json     // Array de Moods
+  questionnaireResponses Json   // Array de QuestionnaireResponse
+  recommendedGenres     Json     // Array de strings
+  playlistSuggestions  Json     // Array de PlaylistSuggestion
+  createdAt             DateTime @default(now())
+  
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("mood_analyses")
+}
+
+// ==================== PLATFORM INTEGRATION MODEL ====================
+
+model PlatformIntegration {
+  id            String   @id @default(cuid())
+  userId        String
+  platform      Platform
+  accessToken   String
+  refreshToken  String?
+  tokenExpiresAt DateTime
+  isActive      Boolean  @default(true)
+  connectedAt   DateTime @default(now())
+  lastSyncAt    DateTime?
+  
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Dados do perfil do usuário na plataforma (JSON flexível)
+  userProfile   Json?
+  
+  @@unique([userId, platform])
+  @@map("platform_integrations")
+}
+
+// ==================== PLAYLIST CONVERSION MODEL ====================
+
+model PlaylistConversion {
+  id                    String   @id @default(cuid())
+  originalPlaylistId    String
+  targetPlatform        Platform
+  convertedPlaylistId   String?
+  status                ConversionStatus
+  matchedSongs          Int      @default(0)
+  unmatchedSongs         Int      @default(0)
+  conversionRate        Float    @default(0)
+  errors                Json?    // Array de ConversionError
+  createdAt             DateTime @default(now())
+  completedAt           DateTime?
+  
+  // Relations
+  originalPlaylist      Playlist @relation(fields: [originalPlaylistId], references: [id], onDelete: Cascade)
+  
+  @@map("playlist_conversions")
+}
+
+// ==================== ENUMS ====================
+
+enum Platform {
+  SPOTIFY
+  YOUTUBE
+  APPLE
+}
+
+enum Mood {
+  HAPPY
+  SAD
+  ENERGETIC
+  CALM
+  ROMANTIC
+  FOCUSED
+}
+
+enum PlaylistType {
+  MOOD
+  GENRE
+  ACTIVITY
+  PERSONALIZED
+  COLLABORATIVE
+}
+
+enum ConversionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
